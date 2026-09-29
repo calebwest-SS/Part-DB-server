@@ -53,6 +53,7 @@ use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Post;
 use App\ApiPlatform\Filter\LikeFilter;
 use App\Repository\ParameterRepository;
+use App\Validator\Constraints\UniqueEntityIgnoringOrphans;
 use App\Validator\UniqueValidatableInterface;
 use Doctrine\DBAL\Types\Types;
 use App\Entity\Base\AbstractDBElement;
@@ -60,8 +61,8 @@ use App\Entity\Base\AbstractNamedDBElement;
 use Doctrine\ORM\Mapping as ORM;
 use InvalidArgumentException;
 use LogicException;
-use Symfony\Component\Serializer\Annotation\Groups;
-use Symfony\Component\Serializer\Annotation\SerializedName;
+use Symfony\Component\Serializer\Attribute\Groups;
+use Symfony\Component\Serializer\Attribute\SerializedName;
 use Symfony\Component\Serializer\Attribute\DiscriminatorMap;
 use Symfony\Component\Validator\Constraints as Assert;
 
@@ -76,9 +77,9 @@ use function sprintf;
     9 => SupplierParameter::class, 10 => AttachmentTypeParameter::class,
     12 => PartCustomStateParameter::class])]
 #[ORM\Table('parameters')]
-#[ORM\Index(columns: ['name'], name: 'parameter_name_idx')]
-#[ORM\Index(columns: ['param_group'], name: 'parameter_group_idx')]
-#[ORM\Index(columns: ['type', 'element_id'], name: 'parameter_type_element_idx')]
+#[ORM\Index(name: 'parameter_name_idx', columns: ['name'])]
+#[ORM\Index(name: 'parameter_group_idx', columns: ['param_group'])]
+#[ORM\Index(name: 'parameter_type_element_idx', columns: ['type', 'element_id'])]
 #[ApiResource(
     shortName: 'Parameter',
     operations: [
@@ -96,6 +97,7 @@ use function sprintf;
 #[ApiFilter(OrderFilter::class, properties: ['name', 'id', 'addedDate', 'lastModified'])]
 //This discriminator map is required for API platform to know which class to use for deserialization, when creating a new parameter.
 #[DiscriminatorMap(typeProperty: '_type', mapping: self::API_DISCRIMINATOR_MAP)]
+#[UniqueEntityIgnoringOrphans(fields: ['name', 'group', 'element'], ownerField: 'element')]
 abstract class AbstractParameter extends AbstractNamedDBElement implements UniqueValidatableInterface
 {
 

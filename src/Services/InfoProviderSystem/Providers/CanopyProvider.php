@@ -23,16 +23,13 @@ declare(strict_types=1);
 
 namespace App\Services\InfoProviderSystem\Providers;
 
-use App\Services\InfoProviderSystem\DTOs\FileDTO;
 use App\Services\InfoProviderSystem\DTOs\PartDetailDTO;
 use App\Services\InfoProviderSystem\DTOs\PriceDTO;
 use App\Services\InfoProviderSystem\DTOs\ProviderInfoDTO;
 use App\Services\InfoProviderSystem\DTOs\PurchaseInfoDTO;
-use App\Services\InfoProviderSystem\DTOs\SearchResultDTO;
-use App\Settings\InfoProviderSystem\BuerklinSettings;
+use App\Services\InfoProviderSystem\PartInfoRetriever;
 use App\Settings\InfoProviderSystem\CanopySettings;
 use Psr\Cache\CacheItemPoolInterface;
-use Symfony\Component\DependencyInjection\Attribute\When;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 /**
@@ -90,7 +87,7 @@ class CanopyProvider implements InfoProviderInterface
      */
     private function saveToCache(PartDetailDTO $part): void
     {
-        $key = 'canopy_part_'.$part->provider_id;
+        $key = 'canopy_part_'.PartInfoRetriever::DTO_CACHE_VERSION.'_'.$part->provider_id;
 
         $item = $this->partInfoCache->getItem($key);
         $item->set($part);
@@ -105,7 +102,7 @@ class CanopyProvider implements InfoProviderInterface
      */
     private function getFromCache(string $id): ?PartDetailDTO
     {
-        $key = 'canopy_part_'.$id;
+        $key = 'canopy_part_'.PartInfoRetriever::DTO_CACHE_VERSION.'_'.$id;
 
         $item = $this->partInfoCache->getItem($key);
         if ($item->isHit()) {

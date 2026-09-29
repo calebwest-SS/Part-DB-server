@@ -59,7 +59,7 @@ class DigikeyProvider implements InfoProviderInterface
     ];
 
     public function __construct(HttpClientInterface $httpClient, private readonly OAuthTokenManager $authTokenManager,
-        private readonly DigikeySettings $settings,)
+        private readonly DigikeySettings $settings)
     {
         //Create the HTTP client with some default options
         $this->digikeyClient = $httpClient->withOptions([
@@ -90,7 +90,8 @@ class DigikeyProvider implements InfoProviderInterface
                 ProviderCapabilities::PICTURE,
                 ProviderCapabilities::DATASHEET,
                 ProviderCapabilities::PRICE,
-                ProviderCapabilities::PARAMETERS
+                ProviderCapabilities::PARAMETERS,
+                ProviderCapabilities::STOCK_LEVEL,
             ],
         );
     }
@@ -157,7 +158,7 @@ class DigikeyProvider implements InfoProviderInterface
     public function getDetails(string $id, array $options = []): PartDetailDTO
     {
         try {
-            $response = $this->digikeyClient->request('GET', '/products/v4/search/' . urlencode($id) . '/productdetails', [
+            $response = $this->digikeyClient->request('GET', '/products/v4/search/' . rawurlencode($id) . '/productdetails', [
                 'auth_bearer' => $this->authTokenManager->getAlwaysValidTokenString(self::OAUTH_APP_NAME)
             ]);
         } catch (\InvalidArgumentException $exception) {
@@ -176,11 +177,14 @@ class DigikeyProvider implements InfoProviderInterface
         $parameters = $this->parametersToDTOs($product['Parameters'] ?? [], $footprint);
         $media = $this->mediaToDTOs($id);
 
-        // Get the price_breaks of the selected variation
+        // Get the price_breaks and the available stock of the selected variation
         $price_breaks = [];
+        $available_amount = $product['QuantityAvailable'] ?? null;
         foreach ($product['ProductVariations'] as $variation) {
             if ($variation['DigiKeyProductNumber'] == $id) {
                 $price_breaks = $variation['StandardPricing'] ?? [];
+                //The stock of the selected packaging is more accurate than the one of the whole product
+                $available_amount = $variation['QuantityAvailableforPackageType'] ?? $available_amount;
                 break;
             }
         }
@@ -200,7 +204,7 @@ class DigikeyProvider implements InfoProviderInterface
             datasheets: $media['datasheets'],
             images: $media['images'],
             parameters: $parameters,
-            vendor_infos: $this->pricingToDTOs($price_breaks, $id, $product['ProductUrl']),
+            vendor_infos: $this->pricingToDTOs($price_breaks, $id, $product['ProductUrl'], $available_amount),
         );
     }
 
@@ -234,7 +238,7 @@ class DigikeyProvider implements InfoProviderInterface
 
         if ($sub_category) {
             //Replace the  ' - ' category separator with ' -> '
-            $category = $category . ' -> ' . str_replace(' - ', ' -> ', $sub_category["Name"]);
+            $category .= ' -> '.str_replace(' - ', ' -> ', $sub_category["Name"]);
         }
 
         return $category;
@@ -277,9 +281,11 @@ class DigikeyProvider implements InfoProviderInterface
      * @param  array  $price_breaks
      * @param  string  $order_number
      * @param  string  $product_url
+     * @param  float|null  $available_amount The amount Digikey has in stock, or null if that is unknown
      * @return PurchaseInfoDTO[]
      */
-    private function pricingToDTOs(array $price_breaks, string $order_number, string $product_url): array
+    private function pricingToDTOs(array $price_breaks, string $order_number, string $product_url,
+        ?float $available_amount = null): array
     {
         $prices = [];
 
@@ -288,7 +294,8 @@ class DigikeyProvider implements InfoProviderInterface
         }
 
         return [
-            new PurchaseInfoDTO(distributor_name: self::VENDOR_NAME, order_number: $order_number, prices: $prices, product_url: $product_url)
+            new PurchaseInfoDTO(distributor_name: self::VENDOR_NAME, order_number: $order_number, prices: $prices,
+                product_url: $product_url, available_amount: $available_amount)
         ];
     }
 
@@ -302,7 +309,7 @@ class DigikeyProvider implements InfoProviderInterface
         $datasheets = [];
         $images = [];
 
-        $response = $this->digikeyClient->request('GET', '/products/v4/search/' . urlencode($id) . '/media', [
+        $response = $this->digikeyClient->request('GET', '/products/v4/search/' . rawurlencode($id) . '/media', [
             'auth_bearer' => $this->authTokenManager->getAlwaysValidTokenString(self::OAUTH_APP_NAME)
         ]);
 

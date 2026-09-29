@@ -31,15 +31,15 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Security\Core\Authorization\AuthorizationCheckerInterface;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 
-class GetPartByIdProcessor implements ProcessorInterface
+readonly class GetPartByIdProcessor implements ProcessorInterface
 {
     public function __construct(
-        private readonly EntityManagerInterface $entityManager,
-        private readonly AuthorizationCheckerInterface $authorizationChecker,
+        private EntityManagerInterface $entityManager,
+        private AuthorizationCheckerInterface $authorizationChecker,
     ) {
     }
 
-    public function process(mixed $data, Operation $operation, array $uriVariables = [], array $context = [])
+    public function process(mixed $data, Operation $operation, array $uriVariables = [], array $context = []): Part
     {
         if (!$data instanceof ElementByIdInput) {
             throw new \InvalidArgumentException('Expected PartByIdInput');

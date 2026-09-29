@@ -30,16 +30,16 @@ use App\Entity\Parts\Part;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\QueryBuilder;
 
-class SearchPartsProcessor implements ProcessorInterface
+readonly class SearchPartsProcessor implements ProcessorInterface
 {
 
     public function __construct(
-        private readonly EntityManagerInterface $entityManager,
+        private EntityManagerInterface $entityManager,
     ) {
 
     }
 
-    public function process(mixed $data, Operation $operation, array $uriVariables = [], array $context = [])
+    public function process(mixed $data, Operation $operation, array $uriVariables = [], array $context = []): array
     {
         if (!$data instanceof PartSearchFilter) {
             return [];
