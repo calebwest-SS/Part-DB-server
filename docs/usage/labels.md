@@ -33,8 +33,8 @@ this way, the default layout is not used. Placed 1D barcodes show their content 
 layout. The size is still set by the **Barcode size** option (or determined automatically, if it is empty); resizing the
 placeholder image in the editor has no effect.
 
-The button is only available if a barcode type is selected; without a barcode type, placeholder images are not shown on
-the label.
+The button is only available if a barcode type is selected. Setting the barcode type to none removes the placeholders from
+the content, so they have to be inserted again if a barcode type is selected later.
 
 In Twig mode (or when writing HTML by hand), you can place the barcode with an image with the `partdb-barcode` class:
 `<img class="partdb-barcode" style="float: right;">`.

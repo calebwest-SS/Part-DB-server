@@ -18,7 +18,7 @@
  */
 
 import {Plugin, ButtonView} from 'ckeditor5';
-import {BARCODE_IMAGE_SRC_PREFIX, calculateGeometry, getFormField, getParameters} from "./labelGeometry";
+import {BARCODE_IMAGE_SRC_PREFIX, calculateGeometry, getFormField, getImageKind, getParameters} from "./labelGeometry";
 
 //A neutral placeholder box, which can be stretched to the aspect ratio of both 1D and 2D barcodes
 const PLACEHOLDER_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" preserveAspectRatio="none">'
@@ -42,13 +42,16 @@ export default class PartDBLabelBarcode extends Plugin {
         const editor = this.editor;
         const t = editor.t;
 
-        //Without a barcode type, the placeholder would not be rendered on the label, so it can not be inserted then
+        //Without a barcode type, the placeholder would not be rendered on the label, so it can not be inserted then, and
+        //existing placeholders are removed (see _onBarcodeTypeChange())
         this.set('hasBarcodeType', true);
         const typeField = getFormField(editor, 'barcode_type');
         if (typeField) {
-            const update = () => this.set('hasBarcodeType', typeField.value !== 'none');
-            update();
-            typeField.addEventListener('change', update);
+            this.hasBarcodeType = typeField.value !== 'none';
+            //Kept to remove the listener in destroy()
+            this._typeField = typeField;
+            this._onTypeChange = () => this._onBarcodeTypeChange(typeField.value !== 'none');
+            typeField.addEventListener('change', this._onTypeChange);
         }
 
         editor.ui.componentFactory.add('partdb_barcode', locale => {
@@ -73,6 +76,46 @@ export default class PartDBLabelBarcode extends Plugin {
             });
 
             return button;
+        });
+    }
+
+    destroy() {
+        //The form outlives the editor (e.g. when switching between HTML and Twig mode), so its listener must be removed
+        this._typeField?.removeEventListener('change', this._onTypeChange);
+        super.destroy();
+    }
+
+    /**
+     * Without a barcode type, placeholders are not rendered on the label, so they are removed from the content when the
+     * barcode type is set to none (one undo step). They can be inserted again with the button.
+     */
+    _onBarcodeTypeChange(hasBarcodeType) {
+        if (hasBarcodeType === this.hasBarcodeType) {
+            return;
+        }
+        this.hasBarcodeType = hasBarcodeType;
+
+        if (!hasBarcodeType) {
+            this._removePlaceholders();
+        }
+    }
+
+    _removePlaceholders() {
+        const model = this.editor.model;
+        const images = [];
+        for (const item of model.createRangeIn(model.document.getRoot()).getItems()) {
+            if (item.is('element') && (item.name === 'imageBlock' || item.name === 'imageInline') && getImageKind(item) === 'barcode') {
+                images.push(item);
+            }
+        }
+        if (images.length === 0) {
+            return;
+        }
+
+        model.change(writer => {
+            for (const image of images) {
+                writer.remove(image);
+            }
         });
     }
 
