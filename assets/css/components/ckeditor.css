@@ -248,6 +248,11 @@ textarea[data-dirty] ~ .ck.ck-editor.partdb-label-preview .ck-editor__main > .ck
     display: none !important;
 }
 
+/* Inline barcodes keep the same gap to the text after them as barcodes wrapped left (see LabelHTMLGenerator::placeBarcodeImage()) */
+.ck-html-label .ck-content .image-inline:not([class*="image-style-"]):has(img[src^="data:image/svg+xml;partdb=barcode"]) {
+    margin-right: 4mm;
+}
+
 /* Same as in label_style.css.twig: The text of lines with inline placeholders is aligned to the top */
 .ck-html-label .ck-content :is(p, h1, h2, h3, h4, h5, h6, li, td, th):has(.image-inline img[src^="data:image/svg+xml;partdb="])
     :not(.image-inline *, sub, sup) {

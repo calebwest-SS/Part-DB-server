@@ -353,6 +353,22 @@ final class LabelHTMLGeneratorTest extends KernelTestCase
         $this->assertStringContainsString('<span class="C39-text">P0000</span></span>Test</p>', $html);
     }
 
+    public function testGapAfterInlineBarcode(): void
+    {
+        //Inline barcodes keep the same 4mm gap to the text after them as barcodes wrapped left
+        $placeholder = fn(string $class = '') => '<img'.($class !== '' ? ' class="'.$class.'"' : '').' src="'.LabelHTMLGenerator::BARCODE_IMAGE_SRC_PREFIX.';base64,AAAA" width="64" height="64">';
+        $cases = [
+            'inline 2D' => [BarcodeType::QR, '<p>'.$placeholder().'Text</p>'],
+            'inline 1D with caption' => [BarcodeType::CODE128, '<p>'.$placeholder().'Text</p>'],
+            'wrapped left' => [BarcodeType::QR, '<p>'.$placeholder('image-style-align-left').'Text</p>'],
+        ];
+        foreach ($cases as $name => [$type, $lines]) {
+            $options = (new LabelOptions())->setWidth(100)->setHeight(50)->setBarcodeType($type)->setBarcodeSize(20)->setLines($lines);
+            $boxes = $this->renderInlineLayout($this->service->getLabelHTML($options, [$this->getExamplePart()]), $options);
+            $this->assertEqualsWithDelta($boxes['img']['right'] + 4, $boxes['Text']['left'], 0.1, $name);
+        }
+    }
+
     public function testPlaced1DBarcodeCaption(): void
     {
         //Placed 1D barcodes get their content as caption, like in the default layout: Block images inside their figure...
@@ -547,7 +563,7 @@ final class LabelHTMLGeneratorTest extends KernelTestCase
     /**
      * Renders the given label HTML with dompdf and returns the boxes (in mm) of its first image ("img"), the caption of a
      * placed barcode ("caption"), its paragraphs ("p1", "p2", ...) and its text nodes (by their text).
-     * @return array<string, array{top: float, bottom: float}>
+     * @return array<string, array{top: float, bottom: float, left: float, right: float}>
      */
     private function renderInlineLayout(string $html, LabelOptions $options): array
     {
@@ -566,8 +582,9 @@ final class LabelHTMLGeneratorTest extends KernelTestCase
                 default => null,
             };
             if ($key !== null && !isset($boxes[$key])) {
-                [, $y, , $height] = $frame->get_border_box();
-                $boxes[$key] = ['top' => $y / LabelGenerator::MM_TO_POINTS_FACTOR, 'bottom' => ($y + $height) / LabelGenerator::MM_TO_POINTS_FACTOR];
+                [$x, $y, $width, $height] = $frame->get_border_box();
+                $mm = static fn(float $pt): float => $pt / LabelGenerator::MM_TO_POINTS_FACTOR;
+                $boxes[$key] = ['top' => $mm($y), 'bottom' => $mm($y + $height), 'left' => $mm($x), 'right' => $mm($x + $width)];
             }
         }]]);
         $dompdf->render();

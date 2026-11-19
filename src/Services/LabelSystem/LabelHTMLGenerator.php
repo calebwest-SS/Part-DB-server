@@ -730,6 +730,19 @@ final readonly class LabelHTMLGenerator
         if ($caption !== null) {
             $this->addBarcodeCaption($img, $caption, $layout);
         }
+
+        //Inline barcodes keep the same gap to the text after them as barcodes wrapped left (see .image-style-align-left in
+        //label_style.css.twig), which also keeps their quiet zone free. Barcodes with an image style or a float keep their margins.
+        if ($this->getFigure($img) === null) {
+            $outer = $img->parentNode instanceof \DOMElement && $img->parentNode->nodeName === 'a' ? $img->parentNode : $img;
+            if ($outer->parentNode instanceof \DOMElement && str_contains($outer->parentNode->getAttribute('class'), 'partdb-barcode-block')) {
+                $outer = $outer->parentNode;
+            }
+            if (preg_match('/\bimage-style-/', $outer->getAttribute('class').' '.$img->getAttribute('class')) !== 1
+                && preg_match('/(?:^|;)\s*float\s*:/i', $outer->getAttribute('style')) !== 1) {
+                $outer->setAttribute('style', trim($outer->getAttribute('style').' margin-right: '.self::SIDE_GAP.'mm;'));
+            }
+        }
     }
 
     /**
