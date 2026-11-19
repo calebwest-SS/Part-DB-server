@@ -85,6 +85,9 @@ export function containsBarcodePlaceholder(editor) {
  *  - width/height: The label size, marginX/marginY: The page margins
  *  - barcodeType: "none", "1D" or "2D"
  *  - barcode: The size of the barcode ({width, height}), or null if there is no barcode
+ *  - placeholder: The size in which barcode placeholders are shown ({width, height}): The size of the barcode, or
+ *    without a barcode type (when they are not rendered on the label) the barcode size option as square (or the
+ *    default size of 2D barcodes), so that they keep a sensible size
  *  - reserved: The area used by the barcode ({left, top, width, height}, relative to the label), or null if there is no
  *    barcode or it is placed inside the content (via the barcode placeholder)
  *  - text: The area of the text lines ({left, width}, relative to the label)
@@ -115,6 +118,9 @@ export function calculateGeometry(editor, params, textHeight = 0) {
         const edge = size ?? Math.min(contentWidth * params.default2DWidthFactor, contentHeight);
         barcode = {width: edge, height: edge};
     }
+
+    const placeholderEdge = size ?? Math.min(contentWidth * params.default2DWidthFactor, contentHeight);
+    const placeholder = barcode ?? {width: placeholderEdge, height: placeholderEdge};
 
     //A barcode placed inside the content (via the barcode placeholder) does not use the default layout
     const layoutType = containsBarcodePlaceholder(editor) ? 'none' : barcodeType;
@@ -151,5 +157,5 @@ export function calculateGeometry(editor, params, textHeight = 0) {
         reserved = {left: marginX, top, width: Math.min(layout.maxWidth, contentWidth), height: blockHeight};
     }
 
-    return {width, height, marginX, marginY, barcodeType, barcode, reserved, text};
+    return {width, height, marginX, marginY, barcodeType, barcode, placeholder, reserved, text};
 }
