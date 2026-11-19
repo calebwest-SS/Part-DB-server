@@ -18,7 +18,7 @@
  */
 
 import {Plugin} from 'ckeditor5';
-import {getSelectedImage} from "./labelGeometry";
+import {getImageKind, getSelectedImage} from "./labelGeometry";
 
 /** The directions of the handles: [name, changes width, sign of the change] */
 const HANDLES = [
@@ -33,7 +33,8 @@ const MIN_SIZE = 8;
 
 /**
  * Adds handles on the edges of the selected image, to change its width or height (in addition to the corner handles of
- * CKEditor). Images keep their aspect ratio, the other dimension is changed accordingly.
+ * CKEditor). Images keep their aspect ratio, the other dimension is changed accordingly. Barcode placeholders get no
+ * handles, as their size is defined by the barcode size option of the label.
  *
  * The handles are shown in an overlay over the editor content (and not inside the editing view), so that CKEditor does
  * not have to know about them. The size is only written to the model when the drag is finished (one undo step).
@@ -90,7 +91,7 @@ export default class PartDBLabelImageHandles extends Plugin {
     _getTarget() {
         const editor = this.editor;
         const image = getSelectedImage(editor);
-        if (!image) {
+        if (!image || getImageKind(image) === 'barcode') {
             return null;
         }
 

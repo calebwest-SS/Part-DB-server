@@ -20,6 +20,9 @@
 import {add} from "ckeditor5";
 
 add( "en", {
+    'Barcode': 'Barcode',
+    'Insert the barcode of the label. Its size is set by the barcode size option.': 'Insert the barcode of the label. Its size is set by the barcode size option.',
+    'Select a barcode type in the label options to insert the barcode.': 'Select a barcode type in the label options to insert the barcode.',
     'Edit HTML snippet': 'Edit HTML snippet',
     'Size': 'Size',
     'Width (mm)': 'Width (mm)',

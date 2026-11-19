@@ -18,7 +18,7 @@
  */
 
 import {Plugin, ButtonView, View, LabeledFieldView, createLabeledInputNumber, createDropdown, submitHandler} from 'ckeditor5';
-import {getSelectedImage, PX_PER_MM} from "./labelGeometry";
+import {getImageKind, getSelectedImage, PX_PER_MM} from "./labelGeometry";
 
 /** The size (in px) assumed for images, whose size is not known */
 const DEFAULT_SIZE = 64;
@@ -70,6 +70,7 @@ class ImageSizeFormView extends View {
 /**
  * Adds a "Size" dropdown to the image toolbar, to set the size of the selected image in mm. Images keep their aspect
  * ratio: The changed dimension is used, and the other one is calculated from it.
+ * For barcode placeholders the dropdown is hidden, as their size is defined by the barcode size option of the label.
  */
 export default class PartDBLabelImageSize extends Plugin {
     static get pluginName() {
@@ -81,13 +82,22 @@ export default class PartDBLabelImageSize extends Plugin {
         const t = editor.t;
 
         this.set('isImageSelected', false);
-        this.listenTo(editor.model.document, 'change', () => this.set('isImageSelected', !!this._getSelectedImage()));
+        this.set('isBarcodeSelected', false);
+        this.listenTo(editor.model.document, 'change', () => {
+            const image = this._getSelectedImage();
+            this.set('isImageSelected', !!image);
+            this.set('isBarcodeSelected', getImageKind(image) === 'barcode');
+        });
 
         editor.ui.componentFactory.add('partdb_image_size', locale => {
             const dropdown = createDropdown(locale);
             dropdown.buttonView.set({label: t('Size'), withText: true});
             dropdown.buttonView.set('tooltip', t('Set the size of the image'));
             dropdown.bind('isEnabled').to(this, 'isImageSelected');
+            //The size of barcodes is set by the barcode size option of the label, so the dropdown is hidden for them
+            dropdown.set('isHidden', false);
+            dropdown.bind('isHidden').to(this, 'isBarcodeSelected');
+            dropdown.extendTemplate({attributes: {class: [dropdown.bindTemplate.if('isHidden', 'ck-hidden')]}});
 
             const form = new ImageSizeFormView(locale);
             dropdown.panelView.children.add(form);

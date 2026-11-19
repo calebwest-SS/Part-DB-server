@@ -214,6 +214,32 @@ textarea[data-dirty] ~ .ck.ck-editor.partdb-label-preview .ck-editor__main > .ck
     min-width: 12em;
 }
 
+/* Without a barcode type, placeholders are not rendered on the label (see PartDBLabelPreview.js) */
+.ck-html-label.partdb-label-no-barcode .ck-content img[src^="data:image/svg+xml;partdb=barcode"] {
+    opacity: 0.3;
+}
+
+/* Barcode placeholder images (see PartDBLabelBarcode.js): Their size is defined by the label options, not by resizing */
+.ck-html-label .ck-content img[src^="data:image/svg+xml;partdb=barcode"] {
+    width: var(--partdb-barcode-width, 64px) !important;
+    height: var(--partdb-barcode-height, 64px) !important;
+    min-width: 0 !important;
+    aspect-ratio: auto !important;
+}
+
+.ck-html-label .ck-content .ck-widget:has(img[src^="data:image/svg+xml;partdb=barcode"]) {
+    width: auto !important;
+}
+
+/* Same as in label_style.css.twig */
+.ck-html-label .ck-content .image-inline:has(img[src^="data:image/svg+xml;partdb=barcode"]) {
+    vertical-align: top;
+}
+
+.ck-html-label .ck-content .ck-widget:has(img[src^="data:image/svg+xml;partdb=barcode"]) .ck-widget__resizer {
+    display: none !important;
+}
+
 .ck-html-label .ck-content .image-style-align-left,
 .ck-html-label .ck-content .image-style-align-right,
 .ck-html-label .ck-content .image-style-side,

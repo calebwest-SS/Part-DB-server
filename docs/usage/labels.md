@@ -26,6 +26,16 @@ The size of the barcode can be set with the **Barcode size** option in mm (the e
 for 1D barcodes). If a size is set, the text is placed directly next to the barcode (and 1D barcodes are placed at the
 bottom of the label). Leave the option empty to keep the default layout.
 
+To place the barcode freely, use the "Barcode" button of the editor. It inserts a placeholder image, which is replaced by
+the barcode of the selected barcode type when the label is generated. You can position it like any other image with the
+image toolbar (e.g. inline with the text, or right-aligned with the text wrapping around it). If the barcode is placed
+this way, the default layout is not used. The button is only available if a barcode type is selected; without a barcode type,
+placeholder images are not shown on the label. The size is still set by the **Barcode size** option (or determined
+automatically, if it is empty); resizing the placeholder image in the editor has no effect.
+
+In Twig mode (or when writing HTML by hand), you can place the barcode with an image with the `partdb-barcode` class:
+`<img class="partdb-barcode" style="float: right;">`.
+
 The `[[BARCODE_QR]]`, `[[BARCODE_C128]]`, etc. placeholders continue to work as before and are independent of these options.
 
 ## Label placeholders

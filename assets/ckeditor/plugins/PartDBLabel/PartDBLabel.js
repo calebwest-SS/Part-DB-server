@@ -19,6 +19,7 @@
 
 import PartDBLabelUI from "./PartDBLabelUI";
 import PartDBLabelEditing from "./PartDBLabelEditing";
+import PartDBLabelBarcode from "./PartDBLabelBarcode";
 import PartDBLabelPreview from "./PartDBLabelPreview";
 import PartDBLabelImageSize from "./PartDBLabelImageSize";
 import PartDBLabelImageHandles from "./PartDBLabelImageHandles";
@@ -31,7 +32,7 @@ import {Plugin} from "ckeditor5";
 
 export default class PartDBLabel extends Plugin {
     static get requires() {
-        return [PartDBLabelUI, PartDBLabelEditing, PartDBLabelImageSize, PartDBLabelImageHandles, PartDBLabelImageStyles, PartDBLabelHtmlEmbed, PartDBLabelPreview];
+        return [PartDBLabelUI, PartDBLabelEditing, PartDBLabelBarcode, PartDBLabelImageSize, PartDBLabelImageHandles, PartDBLabelImageStyles, PartDBLabelHtmlEmbed, PartDBLabelPreview];
     }
 
     static get pluginName() {

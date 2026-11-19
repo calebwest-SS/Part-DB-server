@@ -66,6 +66,14 @@ final class LabelHTMLGeneratorTest extends KernelTestCase
         $this->assertEqualsWithDelta($barcode['height'], $params['legacy1D']['height'], 0.001);
         $this->assertEqualsWithDelta(30 - 2 * 3.175 - $barcode['height'] - $sized['stackedGap'] - $sized['captionHeight'],
             $barcode['cell_height'], 0.001);
+
+        //The size of the barcode without a barcode size (for the barcode placeholder) is the same as in getBarcodeLayout()
+        $options = (new LabelOptions())->setWidth(60)->setHeight(30)->setBarcodeType(BarcodeType::QR);
+        $content_width = 60 - 2 * $params['pageMarginX'];
+        $this->assertEqualsWithDelta($content_width * $params['default2DWidthFactor'], $this->service->getBarcodeLayout($options)['width'], 0.001);
+        $options->setBarcodeType(BarcodeType::CODE128);
+        $this->assertEqualsWithDelta(min($params['default1DMaxWidth'], $content_width), $this->service->getBarcodeLayout($options)['width'], 0.001);
+        $this->assertEqualsWithDelta($params['default1DHeight'], $this->service->getBarcodeLayout($options)['height'], 0.001);
     }
 
     public function testFloatingImagesNextToSizedQRCode(): void
@@ -309,6 +317,91 @@ final class LabelHTMLGeneratorTest extends KernelTestCase
         //(here 5px above the bottom of the page content), even if it covers the text
         $layout = $this->renderBarcodeLayout($options->setLines($lines)->setAdditionalCss('.C39-container { bottom: 5px; }'));
         $this->assertEqualsWithDelta(30 - 3.175 - 5 * 25.4 / 96, $layout['caption'][1], 0.05);
+    }
+
+    public function testBarcodePlaceholderImage(): void
+    {
+        //Like CKEditor outputs a resized image, with the text wrapped around it
+        $lines = '<figure class="image image-style-align-right image_resized" style="width:50px;">'
+            .'<img style="aspect-ratio:64/64;" src="'.LabelHTMLGenerator::BARCODE_IMAGE_SRC_PREFIX.';base64,AAAA" alt="Barcode" width="64" height="64">'
+            .'</figure><p>Test</p>';
+        $options = (new LabelOptions())->setBarcodeType(BarcodeType::QR)->setBarcodeSize(15)->setLines($lines);
+        $html = $this->service->getLabelHTML($options, [$this->getExamplePart()]);
+
+        //The default layout must not be used
+        $this->assertStringNotContainsString('<table class="label-layout', $html);
+        //The placeholder is replaced by the real barcode with the configured size...
+        $this->assertStringNotContainsString(LabelHTMLGenerator::BARCODE_IMAGE_SRC_PREFIX, $html);
+        $this->assertStringContainsString('src="data:image/svg+xml;base64,', $html);
+        $this->assertStringContainsString('width: 15mm; height: 15mm;', $html);
+        $this->assertStringNotContainsString('width="64"', $html);
+        $this->assertStringNotContainsString('width:50px', $html);
+        //... while keeping the placement
+        $this->assertStringContainsString('image-style-align-right', $html);
+        $this->assertStringContainsString('<p>Test</p>', $html);
+    }
+
+    public function testBarcodePlaceholderClass(): void
+    {
+        $options = (new LabelOptions())->setBarcodeType(BarcodeType::CODE128)
+            ->setLines('<p><img class="partdb-barcode" style="float: right;">Test</p>');
+        $html = $this->service->getLabelHTML($options, [$this->getExamplePart()]);
+
+        $this->assertStringNotContainsString('<table class="label-layout', $html);
+        $this->assertStringContainsString('float: right; width: 39.688mm; height: 7.938mm;', $html);
+    }
+
+    public function testBarcodePlaceholderWithoutBarcodeType(): void
+    {
+        $options = (new LabelOptions())->setBarcodeType(BarcodeType::NONE)
+            ->setLines('<p><img class="partdb-barcode">Test</p>');
+        $html = $this->service->getLabelHTML($options, [$this->getExamplePart()]);
+
+        $this->assertStringNotContainsString('<img class="partdb-barcode"', $html);
+        $this->assertStringContainsString('<p>Test</p>', $html);
+    }
+
+    public function testLinkedBarcodePlaceholder(): void
+    {
+        //Linked images are wrapped in a link inside their figure: The figure still gets the size of the barcode
+        $lines = '<figure class="image image_resized image-style-align-left" style="width:50px;"><a href="https://example.com">'
+            .'<img src="'.LabelHTMLGenerator::BARCODE_IMAGE_SRC_PREFIX.';base64,AAAA" width="64" height="64"></a></figure><p>Test</p>';
+        $options = (new LabelOptions())->setBarcodeType(BarcodeType::QR)->setBarcodeSize(15)->setLines($lines);
+        $html = $this->service->getLabelHTML($options, [$this->getExamplePart()]);
+
+        $this->assertStringContainsString('style="width: 15mm;"', $html);
+        $this->assertStringContainsString('width: 15mm; height: 15mm;', $html);
+        $this->assertStringContainsString('<a href="https://example.com">', $html);
+    }
+
+    public function testBarcodePlaceholderInRowOfFloatingImages(): void
+    {
+        //The placed barcode has the size of the barcode layout (30% of the usable width of 96.825mm = 109.79px for a QR
+        //code without barcode size), and the lines use the whole width, as the barcode is not placed next to them. So the
+        //image wrapped right does not fit next to the two images wrapped left, and starts below the barcode.
+        $barcode = '<figure class="image image-style-align-left"><img src="'.LabelHTMLGenerator::BARCODE_IMAGE_SRC_PREFIX.';base64,AAAA" width="64" height="64"></figure>';
+        $left = '<figure class="image image-style-align-left"><img src="data:image/png;base64,AAAA" width="220" height="105"></figure>';
+        $right = '<figure class="image image_resized image-style-align-right" style="width:117.6px;"><img src="data:image/png;base64,AAAA" width="351" height="199"></figure>';
+        $options = (new LabelOptions())->setWidth(100)->setHeight(50)->setBarcodeType(BarcodeType::QR)
+            ->setLines($barcode.$left.$right.'<p>Test</p>');
+        $html = $this->service->getLabelHTML($options, [$this->getExamplePart()]);
+        $this->assertStringContainsString('style="width:117.6px; margin-top: 109.79px;"', $html);
+        //The two images wrapped left fit next to each other, which they would not next to the QR code of the default layout
+        $this->assertDoesNotMatchRegularExpression('/image-style-align-left"[^>]*margin-top/', $html);
+    }
+
+    public function testPlacedBarcodeOnRenderedLabel(): void
+    {
+        //A placed 15mm QR code wrapped right ends at the right edge of the page content (50mm label - 1.5875mm margin),
+        //and the default layout is not used
+        $lines = '<figure class="image image-style-align-right"><img src="'.LabelHTMLGenerator::BARCODE_IMAGE_SRC_PREFIX.';base64,AAAA" width="64" height="64"></figure><p>Test</p>';
+        $options = (new LabelOptions())->setWidth(50)->setHeight(30)->setBarcodeType(BarcodeType::QR)->setBarcodeSize(15)->setLines($lines);
+        [$figure] = $this->renderLayout($options)['figure'];
+
+        $this->assertEqualsWithDelta(15, $figure['right'] - $figure['left'], 0.05);
+        $this->assertEqualsWithDelta(15, $figure['bottom'] - $figure['top'], 0.05);
+        $this->assertEqualsWithDelta(50 - 1.5875, $figure['right'], 0.05);
+        $this->assertEqualsWithDelta(3.175, $figure['top'], 0.05);
     }
 
     public function testDefaultLayoutWithoutPlaceholder(): void
