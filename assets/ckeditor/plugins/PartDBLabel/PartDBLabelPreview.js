@@ -73,6 +73,7 @@ export default class PartDBLabelPreview extends Plugin {
             //Size of the barcode placeholder images
             style.setProperty('--partdb-barcode-width', px(geometry.placeholder.width));
             style.setProperty('--partdb-barcode-height', px(geometry.placeholder.height));
+            style.setProperty('--partdb-barcode-caption', px(geometry.placeholder.caption));
 
             //The area used by the barcode
             root.classList.toggle('partdb-label-has-reserved', geometry.reserved !== null);

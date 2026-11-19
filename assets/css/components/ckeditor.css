@@ -225,6 +225,14 @@ textarea[data-dirty] ~ .ck.ck-editor.partdb-label-preview .ck-editor__main > .ck
     height: var(--partdb-barcode-height, 64px) !important;
     min-width: 0 !important;
     aspect-ratio: auto !important;
+    /* The caption below 1D barcodes (see LabelHTMLGenerator::addBarcodeCaption()), shown as gray bar in the space below
+       the placeholder */
+    box-sizing: content-box !important;
+    padding-bottom: var(--partdb-barcode-caption, 0px) !important;
+    background-image: linear-gradient(#999, #999);
+    background-repeat: no-repeat;
+    background-position: left 1px bottom calc(var(--partdb-barcode-caption, 0px) * 0.25);
+    background-size: min(50%, 15mm) calc(var(--partdb-barcode-caption, 0px) * 0.5);
 }
 
 .ck-html-label .ck-content .ck-widget:has(img[src^="data:image/svg+xml;partdb=barcode"]) {

@@ -158,7 +158,10 @@ final readonly class LabelHTMLGenerator
             }
 
             $barcode = $this->barcodeGenerator->generateSVG($options, $element);
-            [$placed_lines, $barcode_placed] = $this->processLines($lines, $options, $barcode, $barcode_layout);
+            $barcode_content = $this->barcodeGenerator->getContent($options, $element);
+            //Placed 1D barcodes get their content as caption, like in the default layout (2D barcodes have none)
+            $barcode_caption = $barcode_layout !== null && !$barcode_layout['side'] ? $barcode_content : null;
+            [$placed_lines, $barcode_placed] = $this->processLines($lines, $options, $barcode, $barcode_layout, $barcode_caption);
 
             $twig_elements[] = [
                 'element' => $element,
@@ -168,7 +171,7 @@ final readonly class LabelHTMLGenerator
                 //dompdf can not handle floats (text wrapped images) inside the floated columns of the legacy QR layout
                 'has_floating_images' => preg_match(self::FLOATING_IMAGE_REGEX, $placed_lines ?? $lines) === 1,
                 'barcode' => $barcode,
-                'barcode_content' => $this->barcodeGenerator->getContent($options, $element),
+                'barcode_content' => $barcode_content,
             ];
 
             ++$page;
@@ -225,11 +228,12 @@ final readonly class LabelHTMLGenerator
      * Processes the lines of a label: Replaces the placeholder images (see replacePlaceholderImages()) and fixes the
      * position of floating images, which do not fit next to each other (see fitFloatingImages()).
      * @param  array{width: float, height: float}|null  $barcode_layout
+     * @param  string|null  $barcode_caption The text shown below placed barcodes (for 1D barcodes), or null
      * @return array{string|null, bool} The modified lines (or null if they were not changed, so that labels without
      *                                   placeholders or floating images are not changed in any way), and whether a
      *                                   barcode was placed inside the lines
      */
-    private function processLines(string $lines, LabelOptions $options, ?string $barcode_svg, ?array $barcode_layout): array
+    private function processLines(string $lines, LabelOptions $options, ?string $barcode_svg, ?array $barcode_layout, ?string $barcode_caption = null): array
     {
         $has_placeholders = str_contains($lines, 'partdb=') || str_contains($lines, self::BARCODE_IMAGE_CLASS);
         $has_floats = preg_match(self::FLOATING_IMAGE_REGEX, $lines) === 1;
@@ -241,7 +245,7 @@ final readonly class LabelHTMLGenerator
         $fragment = $html5->loadHTMLFragment($lines);
 
         //The placeholders are replaced first, so that their final size is used to fit the floating images
-        $barcode_placed = $has_placeholders && $this->replacePlaceholderImages($fragment, $barcode_svg, $barcode_layout);
+        $barcode_placed = $has_placeholders && $this->replacePlaceholderImages($fragment, $barcode_svg, $barcode_layout, $barcode_caption);
         $changed = $barcode_placed;
 
         if ($has_floats) {
@@ -256,10 +260,11 @@ final readonly class LabelHTMLGenerator
      * Replaces the placeholder images in the given lines: Barcode placeholders with the barcode of the label (sized
      * according to the layout, or removed if no barcode type is selected).
      * @param  array{width: float, height: float}|null  $barcode_layout
+     * @param  string|null  $barcode_caption The text shown below placed barcodes (for 1D barcodes), or null
      * @return bool Whether the lines contained barcode placeholders (so that the barcode is not rendered by the default
      *              layout)
      */
-    private function replacePlaceholderImages(\DOMDocumentFragment $fragment, ?string $barcode_svg, ?array $barcode_layout): bool
+    private function replacePlaceholderImages(\DOMDocumentFragment $fragment, ?string $barcode_svg, ?array $barcode_layout, ?string $barcode_caption): bool
     {
         $barcode_images = [];
         foreach ((new \DOMXPath($fragment->ownerDocument))->query('.//img', $fragment) as $img) {
@@ -269,7 +274,7 @@ final readonly class LabelHTMLGenerator
         }
 
         foreach ($barcode_images as $img) {
-            $this->placeBarcodeImage($img, $barcode_svg, $barcode_layout);
+            $this->placeBarcodeImage($img, $barcode_svg, $barcode_layout, $barcode_caption);
         }
 
         return $barcode_images !== [];
@@ -590,6 +595,10 @@ final readonly class LabelHTMLGenerator
             return null;
         }
 
+        if ((float) $img->getAttribute('data-box-height') > 0) {
+            return (float) $img->getAttribute('data-box-height');
+        }
+
         if (preg_match('/(?:^|;)\s*height\s*:\s*([\d.]+)\s*(px|mm)/i', $img->getAttribute('style'), $matches) === 1) {
             return strtolower($matches[2]) === 'mm' ? (float) $matches[1] * self::PX_PER_MM : (float) $matches[1];
         }
@@ -633,6 +642,10 @@ final readonly class LabelHTMLGenerator
         };
 
         $img = $element->nodeName === 'img' ? $element : ($element->getElementsByTagName('img')->item(0));
+
+        if ($img !== null && (float) $img->getAttribute('data-box-width') > 0) {
+            return (float) $img->getAttribute('data-box-width');
+        }
 
         return $parse($element->getAttribute('style'))
             ?? ($img !== null ? $parse($img->getAttribute('style')) : null)
@@ -700,8 +713,9 @@ final readonly class LabelHTMLGenerator
     /**
      * Replaces a barcode placeholder image with the barcode, or removes it if no barcode type is selected.
      * @param  array{width: float, height: float}|null  $layout
+     * @param  string|null  $caption The text shown below the barcode (for 1D barcodes), or null
      */
-    private function placeBarcodeImage(\DOMElement $img, ?string $barcode_svg, ?array $layout): void
+    private function placeBarcodeImage(\DOMElement $img, ?string $barcode_svg, ?array $layout, ?string $caption = null): void
     {
         if ($barcode_svg === null || $layout === null) {
             $node = $this->getFigure($img) ?? $img;
@@ -712,6 +726,55 @@ final readonly class LabelHTMLGenerator
         $img->setAttribute('src', 'data:image/svg+xml;base64,'.base64_encode($barcode_svg));
         $this->applyPlaceholderStyles($img, self::BARCODE_IMAGE_CLASS,
             sprintf('width: %smm; height: %smm;', $layout['width'], $layout['height']), $layout['width'].'mm');
+
+        if ($caption !== null) {
+            $this->addBarcodeCaption($img, $caption, $layout);
+        }
+    }
+
+    /**
+     * Adds the caption below a placed barcode (like the default layout does for 1D barcodes, see .C39-text in
+     * label_style.css.twig). Block images get it inside their figure. Inline images are wrapped together with it in an
+     * inline block, which takes over the position of the image (its image style or float).
+     * @param  array{width: float, height: float}  $layout
+     */
+    private function addBarcodeCaption(\DOMElement $img, string $caption, array $layout): void
+    {
+        $document = $img->ownerDocument;
+        $text = $document->createElement('span');
+        $text->setAttribute('class', 'C39-text');
+        $text->appendChild($document->createTextNode($caption));
+
+        //Linked images are wrapped in a link
+        $node = $img->parentNode instanceof \DOMElement && $img->parentNode->nodeName === 'a' ? $img->parentNode : $img;
+        $parent = $node->parentNode;
+        if ($parent === null) {
+            return;
+        }
+
+        if ($this->getFigure($img) !== null) {
+            $parent->insertBefore($text, $node->nextSibling);
+        } else {
+            $classes = preg_split('/\s+/', $img->getAttribute('class'), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            $styles = array_values(preg_grep('/^image-style-/', $classes) ?: []);
+            $img->setAttribute('class', implode(' ', array_diff($classes, $styles)));
+            $float = '';
+            if (preg_match('/(?:^|;)\s*(float\s*:[^;]*);?/i', $img->getAttribute('style'), $matches) === 1) {
+                $float = ' '.trim($matches[1]).';';
+                $img->setAttribute('style', trim(str_replace($matches[0], '', $img->getAttribute('style'))));
+            }
+
+            $wrapper = $document->createElement('span');
+            $wrapper->setAttribute('class', implode(' ', ['partdb-barcode-block', ...$styles]));
+            $wrapper->setAttribute('style', 'width: '.$layout['width'].'mm;'.$float);
+            $parent->replaceChild($wrapper, $node);
+            $wrapper->appendChild($node);
+            $wrapper->appendChild($text);
+        }
+
+        //The size of the barcode together with its caption, to fit floating images (see getElementWidth() and getElementHeight())
+        $img->setAttribute('data-box-width', sprintf('%.2F', $layout['width'] * self::PX_PER_MM));
+        $img->setAttribute('data-box-height', sprintf('%.2F', ($layout['height'] + self::LEGACY_1D_LAYOUT['captionHeight']) * self::PX_PER_MM));
     }
 
     /**

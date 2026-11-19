@@ -348,7 +348,51 @@ final class LabelHTMLGeneratorTest extends KernelTestCase
         $html = $this->service->getLabelHTML($options, [$this->getExamplePart()]);
 
         $this->assertStringNotContainsString('<table class="label-layout', $html);
-        $this->assertStringContainsString('float: right; width: 39.688mm; height: 7.938mm;', $html);
+        //The 1D barcode is wrapped together with its caption, and the wrapper takes over the float of the image
+        $this->assertStringContainsString('<span class="partdb-barcode-block" style="width: 39.688mm; float: right;"><img class="partdb-barcode" style="width: 39.688mm; height: 7.938mm;"', $html);
+        $this->assertStringContainsString('<span class="C39-text">P0000</span></span>Test</p>', $html);
+    }
+
+    public function testPlaced1DBarcodeCaption(): void
+    {
+        //Placed 1D barcodes get their content as caption, like in the default layout: Block images inside their figure...
+        $placeholder = '<img src="'.LabelHTMLGenerator::BARCODE_IMAGE_SRC_PREFIX.';base64,AAAA" width="64" height="64">';
+        $options = (new LabelOptions())->setWidth(100)->setHeight(50)->setBarcodeType(BarcodeType::CODE128)->setBarcodeSize(40)
+            ->setLines('<figure class="image image-style-block-align-left">'.$placeholder.'</figure><p>Test</p>');
+        $html = $this->service->getLabelHTML($options, [$this->getExamplePart()]);
+        $this->assertStringContainsString('<span class="C39-text">P0000</span></figure>', $html);
+
+        //On the rendered label, the caption (6pt, 2.71mm high) is directly below the 7.94mm high barcode, and the text below both
+        $boxes = $this->renderInlineLayout($html, $options);
+        $this->assertEqualsWithDelta(7.9375, $boxes['img']['bottom'] - $boxes['img']['top'], 0.05);
+        $this->assertEqualsWithDelta($boxes['img']['bottom'], $boxes['caption']['top'], 0.05);
+        $this->assertEqualsWithDelta(2.709, $boxes['caption']['bottom'] - $boxes['caption']['top'], 0.05);
+        $this->assertGreaterThanOrEqual($boxes['caption']['bottom'] - 0.01, $boxes['p1']['top']);
+
+        //... inline images in an inline block with it, which takes over the image style (here: wrap text left)
+        $options->setLines('<p>'.str_replace('<img ', '<img class="image-style-align-left" ', $placeholder).'Test</p>');
+        $html = $this->service->getLabelHTML($options, [$this->getExamplePart()]);
+        $this->assertStringContainsString('<span class="partdb-barcode-block image-style-align-left" style="width: 40mm;"><img class="partdb-barcode"', $html);
+        $boxes = $this->renderInlineLayout($html, $options);
+        $this->assertEqualsWithDelta($boxes['img']['bottom'], $boxes['caption']['top'], 0.05);
+        $this->assertEqualsWithDelta($boxes['img']['top'], $boxes['Test']['top'], 0.05);
+
+        //2D barcodes have no caption
+        $options->setBarcodeType(BarcodeType::QR)->setLines('<figure class="image image-style-align-left">'.$placeholder.'</figure><p>Test</p>');
+        $this->assertStringNotContainsString('<span class="C39-text">', $this->service->getLabelHTML($options, [$this->getExamplePart()]));
+    }
+
+    public function test1DBarcodePlaceholderInRowOfFloatingImages(): void
+    {
+        //The caption belongs to the height of a placed 1D barcode: 7.9375mm barcode + 2.709mm caption = 40.24px, so the
+        //image which does not fit next to it starts 40.24px below
+        $barcode = '<figure class="image image-style-align-left"><img src="'.LabelHTMLGenerator::BARCODE_IMAGE_SRC_PREFIX.';base64,AAAA" width="64" height="64"></figure>';
+        $right = '<figure class="image image-style-align-right"><img src="data:image/png;base64,AAAA" width="250" height="30"></figure>';
+        $options = (new LabelOptions())->setWidth(100)->setHeight(50)->setBarcodeType(BarcodeType::CODE128)
+            ->setLines($barcode.$right.'<p>Test</p>');
+        $html = $this->service->getLabelHTML($options, [$this->getExamplePart()]);
+        $this->assertStringContainsString('data-box-height="40.24"', $html);
+        $this->assertStringContainsString('margin-top: 40.24px;', $html);
     }
 
     public function testBarcodePlaceholderWithoutBarcodeType(): void
@@ -501,8 +545,8 @@ final class LabelHTMLGeneratorTest extends KernelTestCase
     }
 
     /**
-     * Renders the given label HTML with dompdf and returns the boxes (in mm) of its first image ("img"), its paragraphs
-     * ("p1", "p2", ...) and its text nodes (by their text).
+     * Renders the given label HTML with dompdf and returns the boxes (in mm) of its first image ("img"), the caption of a
+     * placed barcode ("caption"), its paragraphs ("p1", "p2", ...) and its text nodes (by their text).
      * @return array<string, array{top: float, bottom: float}>
      */
     private function renderInlineLayout(string $html, LabelOptions $options): array
@@ -516,6 +560,7 @@ final class LabelHTMLGeneratorTest extends KernelTestCase
             $node = $frame->get_node();
             $key = match (true) {
                 $node instanceof \DOMElement && $node->nodeName === 'img' => 'img',
+                $node instanceof \DOMElement && $node->getAttribute('class') === 'C39-text' => 'caption',
                 $node instanceof \DOMElement && $node->nodeName === 'p' => 'p'.(count(array_filter(array_keys($boxes), static fn($k) => preg_match('/^p\d+$/', (string) $k) === 1)) + 1),
                 $node instanceof \DOMText && trim($node->textContent) !== '' => trim($node->textContent),
                 default => null,

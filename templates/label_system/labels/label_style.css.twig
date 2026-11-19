@@ -114,6 +114,12 @@ img.partdb-barcode {
     vertical-align: top;
 }
 
+/* An inline barcode with its caption (see LabelHTMLGenerator::addBarcodeCaption()) */
+.partdb-barcode-block {
+    display: inline-block;
+    vertical-align: top;
+}
+
 /* dompdf places the text of a line at its baseline (at 80% of the line height), independent of the alignment of the images
    in it, while browsers place it at the top of a line next to an image aligned to the top. So the text of lines with
    inline placeholders is aligned to the top, like in the label editor (see LabelHTMLGenerator::markPlaceholderLine()) */

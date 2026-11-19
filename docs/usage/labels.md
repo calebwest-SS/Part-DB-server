@@ -29,9 +29,12 @@ bottom of the label). Leave the option empty to keep the default layout.
 To place the barcode freely, use the "Barcode" button of the editor. It inserts a placeholder image, which is replaced by
 the barcode of the selected barcode type when the label is generated. You can position it like any other image with the
 image toolbar (e.g. inline with the text, or right-aligned with the text wrapping around it). If the barcode is placed
-this way, the default layout is not used. The button is only available if a barcode type is selected; without a barcode type,
-placeholder images are not shown on the label. The size is still set by the **Barcode size** option (or determined
-automatically, if it is empty); resizing the placeholder image in the editor has no effect.
+this way, the default layout is not used. Placed 1D barcodes show their content as text below them, like in the default
+layout. The size is still set by the **Barcode size** option (or determined automatically, if it is empty); resizing the
+placeholder image in the editor has no effect.
+
+The button is only available if a barcode type is selected; without a barcode type, placeholder images are not shown on
+the label.
 
 In Twig mode (or when writing HTML by hand), you can place the barcode with an image with the `partdb-barcode` class:
 `<img class="partdb-barcode" style="float: right;">`.
