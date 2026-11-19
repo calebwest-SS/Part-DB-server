@@ -240,6 +240,12 @@ textarea[data-dirty] ~ .ck.ck-editor.partdb-label-preview .ck-editor__main > .ck
     display: none !important;
 }
 
+/* Same as in label_style.css.twig: The text of lines with inline placeholders is aligned to the top */
+.ck-html-label .ck-content :is(p, h1, h2, h3, h4, h5, h6, li, td, th):has(.image-inline img[src^="data:image/svg+xml;partdb="])
+    :not(.image-inline *, sub, sup) {
+    vertical-align: top;
+}
+
 .ck-html-label .ck-content .image-style-align-left,
 .ck-html-label .ck-content .image-style-align-right,
 .ck-html-label .ck-content .image-style-side,

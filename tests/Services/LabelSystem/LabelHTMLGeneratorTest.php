@@ -404,6 +404,22 @@ final class LabelHTMLGeneratorTest extends KernelTestCase
         $this->assertEqualsWithDelta(3.175, $figure['top'], 0.05);
     }
 
+    public function testInlineBarcodePlaceholder(): void
+    {
+        //Next to an inline placeholder, the text is aligned to the top of the line like in the editor (dompdf would place
+        //it at the baseline of the line otherwise, near the bottom of the barcode). The next paragraph starts below it.
+        $lines = '<p><span style="font-size:16px;"><strong><img src="'.LabelHTMLGenerator::BARCODE_IMAGE_SRC_PREFIX.';base64,AAAA" width="64" height="64">Name</strong></span> small</p><p>Next</p>';
+        $options = (new LabelOptions())->setWidth(100)->setHeight(50)->setBarcodeType(BarcodeType::QR)->setBarcodeSize(25)->setLines($lines);
+        $html = $this->service->getLabelHTML($options, [$this->getExamplePart()]);
+        $this->assertStringContainsString('<p class="partdb-placeholder-line">', $html);
+
+        $boxes = $this->renderInlineLayout($html, $options);
+        $this->assertEqualsWithDelta(25, $boxes['img']['bottom'] - $boxes['img']['top'], 0.05);
+        $this->assertEqualsWithDelta($boxes['img']['top'], $boxes['Name']['top'], 0.05);
+        $this->assertEqualsWithDelta($boxes['img']['top'], $boxes['small']['top'], 0.05);
+        $this->assertGreaterThanOrEqual($boxes['img']['bottom'] - 0.01, $boxes['p2']['top']);
+    }
+
     public function testDefaultLayoutWithoutPlaceholder(): void
     {
         $options = (new LabelOptions())->setBarcodeType(BarcodeType::QR)->setBarcodeSize(15)->setLines('<p>Test</p>');
@@ -482,6 +498,36 @@ final class LabelHTMLGeneratorTest extends KernelTestCase
         $layout['pages'] = $dompdf->getCanvas()->get_page_count();
 
         return $layout;
+    }
+
+    /**
+     * Renders the given label HTML with dompdf and returns the boxes (in mm) of its first image ("img"), its paragraphs
+     * ("p1", "p2", ...) and its text nodes (by their text).
+     * @return array<string, array{top: float, bottom: float}>
+     */
+    private function renderInlineLayout(string $html, LabelOptions $options): array
+    {
+        $dompdf = self::getContainer()->get(DompdfFactoryInterface::class)->create();
+        $dompdf->setPaper(self::getContainer()->get(LabelGenerator::class)->mmToPointsArray($options->getWidth(), $options->getHeight()));
+        $dompdf->loadHtml($html);
+
+        $boxes = [];
+        $dompdf->setCallbacks([['event' => 'end_frame', 'f' => static function (Frame $frame) use (&$boxes): void {
+            $node = $frame->get_node();
+            $key = match (true) {
+                $node instanceof \DOMElement && $node->nodeName === 'img' => 'img',
+                $node instanceof \DOMElement && $node->nodeName === 'p' => 'p'.(count(array_filter(array_keys($boxes), static fn($k) => preg_match('/^p\d+$/', (string) $k) === 1)) + 1),
+                $node instanceof \DOMText && trim($node->textContent) !== '' => trim($node->textContent),
+                default => null,
+            };
+            if ($key !== null && !isset($boxes[$key])) {
+                [, $y, , $height] = $frame->get_border_box();
+                $boxes[$key] = ['top' => $y / LabelGenerator::MM_TO_POINTS_FACTOR, 'bottom' => ($y + $height) / LabelGenerator::MM_TO_POINTS_FACTOR];
+            }
+        }]]);
+        $dompdf->render();
+
+        return $boxes;
     }
 
     private function getExamplePart(): Part

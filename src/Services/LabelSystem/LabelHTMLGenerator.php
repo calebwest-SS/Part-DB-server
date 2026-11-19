@@ -673,6 +673,27 @@ final readonly class LabelHTMLGenerator
             if (!str_contains($figure->getAttribute('class'), 'image_resized')) {
                 $figure->setAttribute('class', trim($figure->getAttribute('class').' image_resized'));
             }
+        } else {
+            $this->markPlaceholderLine($img);
+        }
+    }
+
+    /**
+     * Marks the block (e.g. the paragraph), which contains the given inline placeholder image, so that its text is aligned
+     * to the top of the line (see .partdb-placeholder-line in label_style.css.twig): dompdf places the text of a line at
+     * its baseline, independent of the alignment of the images in it, while browsers (and the label editor) place it at
+     * the top of a line next to an image aligned to the top.
+     */
+    private function markPlaceholderLine(\DOMElement $img): void
+    {
+        for ($node = $img->parentNode; $node instanceof \DOMElement; $node = $node->parentNode) {
+            if (in_array($node->nodeName, ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'td', 'th', 'div'], true)) {
+                $classes = preg_split('/\s+/', $node->getAttribute('class'), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+                if (!in_array('partdb-placeholder-line', $classes, true)) {
+                    $node->setAttribute('class', implode(' ', [...$classes, 'partdb-placeholder-line']));
+                }
+                return;
+            }
         }
     }
 
